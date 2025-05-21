@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>监控密码获取</title>
+    <style>
+        /* 全局居中设置 */
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #f0f2f5;
+        }
+
+        /* 授权弹窗样式 */
+        #authModal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 25px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            text-align: center;
+            z-index: 1000;
+        }
+
+        /* 主界面容器 */
+        .container {
+            width: 90%;
+            max-width: 500px;
+            padding: 30px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-5%);
+        }
+
+        /* 输入框样式 */
+        #authInput, #hexInput {
+            width: 200px;
+            padding: 10px;
+            margin: 15px 0;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        /* 按钮组布局 */
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        /* 结果提示样式 */
+        .result, .error {
+            text-align: center;
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .result {
+            background: #f8f9fa;
+        }
+
+        .error {
+            color: #dc3545;
+            background: #fff5f5;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- 授权验证界面 -->
+    <div id="authModal">
+        <h3 style="margin: 0 0 15px 0;">🔒 系统授权验证</h3>
+        <input type="password" 
+               id="authInput" 
+               placeholder="输入4位授权密码"
+               maxlength="4"
+               onkeypress="return event.charCode >= 48 && event.charCode <= 57">
+        <div class="btn-group">
+            <button onclick="checkAuth()">确认授权</button>
+        </div>
+        <div id="authError" style="color:red; margin-top:10px;"></div>
+    </div>
+
+    <!-- 主功能界面 -->
+    <div class="container hidden" id="mainInterface">
+        <h2 style="text-align: center; margin-bottom: 20px;">📡 监控密码系统</h2>
+        <input type="text" 
+               id="hexInput" 
+               placeholder="输入4字节（例：854F4B39）"
+               maxlength="8"
+               style="width: 100%">
+        <div class="btn-group">
+            <button onclick="handleGenerate('super')">获取超级密码</button>
+            <button onclick="handleGenerate('root')" id="rootBtn">获取Root密码</button>
+        </div>
+        <div class="result" id="result"></div>
+        <div class="error" id="error"></div>
+    </div>
+
+<script>
+// 初始化状态
+let authPassed = false;
+
+function checkAuth() {
+    const password = document.getElementById('authInput').value;
+    const authError = document.getElementById('authError');
+    
+    // 清除错误提示
+    authError.textContent = '';
+    
+    // 验证逻辑
+    switch(password) {
+        case '8686':
+            document.getElementById('rootBtn').style.display = 'none';
+            authPassed = true;
+            break;
+        case '0221':
+            authPassed = true;
+            break;
+        default:
+            authError.textContent = '⚠️ 授权码错误';
+            setTimeout(() => {
+                document.body.innerHTML = '<h1 style="text-align:center">🚫 系统已锁定</h1>';
+            }, 1000);
+            return;
+    }
+    
+    // 切换界面
+    if(authPassed) {
+        document.getElementById('authModal').classList.add('hidden');
+        document.getElementById('mainInterface').classList.remove('hidden');
+    }
+}
+
+// 生成密码功能
+function handleGenerate(type) {
+    if(!authPassed) return;
+    
+    const resultEl = document.getElementById('result');
+    const errorEl = document.getElementById('error');
+    resultEl.textContent = '';
+    errorEl.textContent = '';
+
+    const input = document.getElementById('hexInput').value.trim().toUpperCase();
+    if (!/^[0-9A-F]{8}$/.test(input)) {
+        errorEl.textContent = '❌ 必须输入8位十六进制字符';
+        return;
+    }
+
+    const bytes = [];
+    for (let i=0; i<8; i+=2) {
+        bytes.push(parseInt(input.substr(i,2), 16));
+    }
+
+    const pwd = (type === 'super') ? 
+               generateSuperPassword(bytes) : 
+               generateRootPassword(bytes);
+
+    resultEl.innerHTML = `🔑 ${type === 'super' ? '超级' : 'Root'}密码：<strong>${pwd.toString().padStart(4, '0')}</strong>`;
+}
+
+// 密码算法实现
+function generateSuperPassword(bytes) {
+    let high = 0, low = 0;
+    for (let i=0; i<4; i++) {
+        high = (high << 4) | ((bytes[i] >> 4) & 0x0F);
+        low = (low << 4) | (bytes[i] & 0x0F);
+    }
+    return calculateFinalPassword(high, low);
+}
+
+function generateRootPassword(bytes) {
+    let high = 0, low = 0;
+    for (let i=3; i>=0; i--) {
+        high = (high << 4) | ((bytes[i] >> 4) & 0x0F);
+        low = (low << 4) | (bytes[i] & 0x0F);
+    }
+    return calculateFinalPassword(high, low);
+}
+
+function calculateFinalPassword(high, low) {
+    let diff = Math.abs(high - low);
+    let pwd = diff % 10000;
+    return [1234, 8686].includes(pwd) ? (pwd + 1) % 10000 : pwd;
+}
+</script>
+</body>
+</html>
